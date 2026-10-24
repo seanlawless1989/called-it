@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Called It! logo">
+  <rect width="512" height="512" rx="112" fill="#15173D"/>
+  <!-- floodlight rays -->
+  <g stroke="#FFC933" stroke-width="14" stroke-linecap="round" opacity=".9">
+    <line x1="392" y1="92" x2="424" y2="60"/>
+    <line x1="430" y1="150" x2="474" y2="138"/>
+    <line x1="338" y1="70" x2="348" y2="26"/>
+  </g>
+  <!-- speech bubble -->
+  <path d="M96 132c0-22 18-40 40-40h200c22 0 40 18 40 40v168c0 22-18 40-40 40H236l-84 74c-8 7-20 1-20-9v-65h-0c-22 0-36-18-36-40z" fill="#FFC933"/>
+  <!-- tick -->
+  <path d="M160 222l62 62 118-128" fill="none" stroke="#15173D" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- ball dot -->
+  <circle cx="352" cy="372" r="30" fill="#FF5A5F"/>
+  <path d="M334 360c14 6 28 6 36 0M336 384c12-6 24-6 32 2" fill="none" stroke="#15173D" stroke-width="6" stroke-linecap="round"/>
+</svg>
