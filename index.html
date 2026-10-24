@@ -160,6 +160,26 @@ input[type=text],input[type=password],input[type=number],input[type=datetime-loc
 .plist{display:grid;gap:8px}
 .prow{display:flex;align-items:center;gap:10px}
 .prow b{flex:1}
+input[type=date]{width:100%;border:2px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;min-height:44px}
+.dates{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.checks{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}
+.chk{display:inline-flex;gap:8px;align-items:center;border:2px solid var(--line);border-radius:99px;padding:6px 12px;font-weight:700;font-size:14px;background:#fff;cursor:pointer}
+.chk input{width:18px;height:18px;margin:0}
+.ihead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.ihead h3{margin:0}
+.ihead .lk{border:0;background:none;font-weight:700;font-size:14px;color:var(--sky);padding:6px 4px;text-decoration:underline}
+.irow{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.irow.done{opacity:.55}
+.irow input[type=checkbox]{width:24px;height:24px;flex:none;margin:0}
+.irow .it{flex:1;min-width:0;font-weight:700}
+.irow .it small{display:block;color:var(--muted);font-weight:500}
+.star{flex:none;border:2px solid var(--line);background:#fff;border-radius:10px;width:42px;height:42px;font-size:18px;filter:grayscale(1);opacity:.55}
+.star[aria-pressed=true]{filter:none;opacity:1;border-color:#D9A914;background:#FFF4CC}
+.tally{position:sticky;bottom:0;z-index:3;background:var(--night);color:#fff;border-radius:18px;padding:14px;margin-top:12px;display:grid;gap:10px}
+.tally b{color:var(--flood)}
+.tally select,.tally input[type=text]{background:#fff;color:var(--ink)}
+.tally .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.msg{padding:14px;border-radius:14px;background:#fff;border:1px dashed var(--line);color:var(--muted);margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -440,9 +460,9 @@ function adminGate(ov,isSet){
 
 function adminMain(ov){
   ov.innerHTML=`${aTop('Admin')}<div class="wrap"><div class="atabs" role="group" aria-label="Admin sections">
-  <button class="chipbtn" data-t="results">Results</button><button class="chipbtn" data-t="add">Add fixtures</button><button class="chipbtn" data-t="players">Players</button><button class="chipbtn" data-t="pin">PIN</button></div><div id="abox"></div></div>`;
-  const box=$('#abox',ov);let tab=S.fixtures.length?'results':'add';
-  const show=t=>{tab=t;$$('[data-t]',ov).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===t)));({results:adminResults,add:adminAdd,players:adminPlayers,pin:adminPin})[t](box);};
+  <button class="chipbtn" data-t="import">Import fixtures</button><button class="chipbtn" data-t="results">Results</button><button class="chipbtn" data-t="add">Add manually</button><button class="chipbtn" data-t="players">Players</button><button class="chipbtn" data-t="pin">PIN</button></div><div id="abox"></div></div>`;
+  const box=$('#abox',ov);let tab=S.fixtures.length?'results':'import';
+  const show=t=>{tab=t;$$('[data-t]',ov).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===t)));({import:adminImport,results:adminResults,add:adminAdd,players:adminPlayers,pin:adminPin})[t](box);};
   ov.onclick=e=>{if(e.target.closest('[data-a=close]'))closeAdmin();const b=e.target.closest('[data-t]');if(b)show(b.dataset.t);};
   show(tab);
 }
@@ -458,13 +478,19 @@ function adminResults(box){
     <div class="card">${fx.length?fx.map(f=>{const d=new Date(f.kickoff);return `<div class="arow" data-fid="${f.id}"><div class="al">${esc(f.home)} v ${esc(f.away)}<small>${SPORTS[f.sport].emoji} ${esc(f.league||SPORTS[f.sport].name)} · ${dayLabel(d)} ${timeLabel(d)}${f.is_banker?' · ⭐ Banker':''}</small></div>
       <input type="number" inputmode="numeric" min="0" class="hs" aria-label="${esc(f.home)} score" value="${f.home_score??''}"><input type="number" inputmode="numeric" min="0" class="as" aria-label="${esc(f.away)} score" value="${f.away_score??''}">
       <span></span><div class="acts"><button class="btn sm" data-r="save">Save result</button><button class="btn ghost sm" data-r="clear">Clear</button><button class="btn danger sm" data-r="del">Delete</button></div></div>`;}).join(''):'<p class="note">No fixtures in this round.</p>'}</div>
-    <button class="btn danger sm" data-r="delround">Delete this round</button>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-r="sync">Fetch results now</button><button class="btn danger sm" data-r="delround">Delete this round</button></div>
+    <p class="note">Results for imported fixtures are fetched automatically every 10 minutes. Typing a score here always wins.</p>`;
   };
   draw();
   box.onchange=e=>{if(e.target.id==='rsel'){rid=e.target.value;S.adminRound=rid;draw();}};
   box.onclick=async e=>{
     const b=e.target.closest('[data-r]');if(!b)return;const row=b.closest('[data-fid]');
     try{
+      if(b.dataset.r==='sync'){
+        b.disabled=true;const r=await syncResults();b.disabled=false;
+        toast(r.updated?`${r.updated} result${r.updated>1?'s':''} added`:(r.checked?'No finished games to add yet':'Nothing waiting for a result'));
+        await reloadBase();return draw();
+      }
       if(b.dataset.r==='save'){
         const h=$('.hs',row).value,a=$('.as',row).value;
         if(h===''||a===''){toast('Enter both scores, or use Clear.');return;}
@@ -474,6 +500,156 @@ function adminResults(box){
       else if(b.dataset.r==='delround'){if(!confirm('Delete this whole round, with all its picks and results?'))return;await adm('admin_delete_round',{p_round:rid});S.adminRound=null;toast('Round deleted');await reloadBase();return adminResults(box);}
       await reloadBase();draw();
     }catch(err){toast(err.message);}
+  };
+}
+
+/* ---------- fixture import ---------- */
+const ESPN='https://site.api.espn.com/apis/site/v2/sports/';
+const TSDB='https://www.thesportsdb.com/api/v1/json/123/';
+const COMPS=[
+  {id:'pl',name:'Premier League',sport:'football',src:'espn',path:'soccer/eng.1',on:true},
+  {id:'champ',name:'Championship',sport:'football',src:'espn',path:'soccer/eng.2',on:true},
+  {id:'ucl',name:'Champions League',sport:'football',src:'espn',path:'soccer/uefa.champions'},
+  {id:'fa',name:'FA Cup',sport:'football',src:'espn',path:'soccer/eng.fa'},
+  {id:'sl',name:'Super League',sport:'rugby_league',src:'tsdb',lid:4415,on:true},
+  {id:'nrl',name:'NRL',sport:'rugby_league',src:'tsdb',lid:4416},
+  {id:'prem',name:'Premiership Rugby',sport:'rugby_union',src:'espn',path:'rugby/267979',on:true},
+  {id:'urc',name:'United Rugby Championship',sport:'rugby_union',src:'espn',path:'rugby/270557',on:true},
+  {id:'ec',name:'Champions Cup',sport:'rugby_union',src:'espn',path:'rugby/271937'},
+  {id:'six',name:'Six Nations',sport:'rugby_union',src:'espn',path:'rugby/180659'},
+  {id:'nfl',name:'NFL',sport:'nfl',src:'espn',path:'football/nfl',on:true}
+];
+const ymdUTC=d=>`${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
+const dateInput=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error('Feed unavailable ('+r.status+')');return r.json();}
+
+async function fetchComp(c,start,end){
+  const out=new Map();
+  if(c.src==='espn'){
+    // ESPN groups games by US day, so ask for a day either side and filter by kick-off.
+    const days=new Set();
+    for(let t=start.getTime()-864e5;t<=end.getTime()+864e5;t+=864e5)days.add(ymdUTC(new Date(t)));
+    await Promise.all([...days].map(async d=>{
+      let j;try{j=await getJSON(`${ESPN}${c.path}/scoreboard?dates=${d}`);}catch(e){return;}
+      (j.events||[]).forEach(e=>{
+        const comp=e.competitions&&e.competitions[0];if(!comp)return;
+        const h=comp.competitors.find(x=>x.homeAway==='home'),a=comp.competitors.find(x=>x.homeAway==='away');
+        if(!h||!a)return;
+        const ko=new Date(e.date);if(ko<start||ko>end)return;
+        out.set(String(e.id),{source:'espn',ext_id:String(e.id),ext_league:c.path,sport:c.sport,league:c.name,home:h.team.displayName,away:a.team.displayName,kickoff:ko.toISOString(),comp:c.id});
+      });
+    }));
+  }else{
+    const j=await getJSON(`${TSDB}eventsnextleague.php?id=${c.lid}`);
+    (j.events||[]).forEach(e=>{
+      let ts=e.strTimestamp||`${e.dateEvent}T${e.strTime||'12:00:00'}`;
+      if(!/[zZ]|[+-]\d\d:?\d\d$/.test(ts))ts+='Z';
+      const ko=new Date(ts);if(isNaN(ko)||ko<start||ko>end||!e.strHomeTeam||!e.strAwayTeam)return;
+      out.set(String(e.idEvent),{source:'tsdb',ext_id:String(e.idEvent),ext_league:String(c.lid),sport:c.sport,league:c.name,home:e.strHomeTeam,away:e.strAwayTeam,kickoff:ko.toISOString(),comp:c.id});
+    });
+  }
+  return [...out.values()].sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+}
+
+async function syncResults(){
+  try{
+    const r=await fetch(`${SB}/functions/v1/sync-results`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    return r.ok?await r.json():{checked:0,updated:0};
+  }catch(e){return {checked:0,updated:0};}
+}
+async function maybeSync(){
+  const now=Date.now();
+  const waiting=S.fixtures.some(f=>f.ext_id&&f.home_score==null&&new Date(f.kickoff)<now-90*60000);
+  if(!waiting)return;
+  const last=+(store.get('calledit.sync')||0);if(now-last<5*60000)return;
+  store.set('calledit.sync',String(now));
+  const r=await syncResults();
+  if(r.updated>0&&!S.adminOpen)refreshAll();
+}
+
+function adminImport(box){
+  const today=new Date(),week=new Date(Date.now()+7*864e5);
+  let found=[],sel=new Set(),banker=null;
+  const key=f=>f.source+':'+f.ext_id;
+  const have=new Set(S.fixtures.filter(f=>f.ext_id).map(f=>f.source+':'+f.ext_id));
+  box.innerHTML=`<div class="card"><h3>Find fixtures</h3>
+    <div class="dates"><label class="f">From<input type="date" id="ifrom" value="${dateInput(today)}"></label><label class="f">To<input type="date" id="ito" value="${dateInput(week)}"></label></div>
+    <div class="checks" role="group" aria-label="Competitions">${COMPS.map(c=>`<label class="chk"><input type="checkbox" value="${c.id}" ${c.on?'checked':''}> ${SPORTS[c.sport].emoji} ${esc(c.name)}</label>`).join('')}</div>
+    <button class="btn" data-i="find" id="ifind">Find fixtures</button></div><div id="ires"></div>`;
+  const res=$('#ires',box);
+
+  const tallyHtml=()=>{
+    const by={};found.filter(f=>sel.has(key(f))).forEach(f=>{by[f.sport]=(by[f.sport]||0)+1;});
+    const n=sel.size,parts=Object.entries(by).map(([k,v])=>`${v} ${SPORTS[k].name}`).join(' · ');
+    return `<div class="tally"><div>${n?`<b>${n}</b> selected: ${esc(parts)}`:'Tick the fixtures you want in this round'}</div>
+      <div class="row2"><select class="f" id="itarget" aria-label="Add to round"><option value="new">New round</option>${S.rounds.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select>
+      <input type="text" class="t" id="iname" aria-label="Round name" value="Round ${S.rounds.length+1}"></div>
+      <button class="btn flood" data-i="add" ${n?'':'disabled'}>Add ${n||''} fixture${n===1?'':'s'} to round</button></div>`;
+  };
+  const draw=()=>{
+    if(!found.length){return;}
+    const groups=COMPS.filter(c=>found.some(f=>f.comp===c.id));
+    const keepTarget=$('#itarget',res)&&$('#itarget',res).value,keepName=$('#iname',res)&&$('#iname',res).value;
+    res.innerHTML=groups.map(c=>{
+      const list=found.filter(f=>f.comp===c.id);
+      return `<div class="card"><div class="ihead"><h3>${SPORTS[c.sport].emoji} ${esc(c.name)} (${list.length})</h3><span><button class="lk" data-i="all" data-c="${c.id}">Select all</button><button class="lk" data-i="none" data-c="${c.id}">Clear</button></span></div>
+      ${list.map(f=>{const k=key(f),d=new Date(f.kickoff),added=have.has(k),past=d<=new Date();
+        return `<div class="irow ${added?'done':''}"><input type="checkbox" data-k="${esc(k)}" aria-label="${esc(f.home)} v ${esc(f.away)}" ${sel.has(k)?'checked':''} ${added?'disabled':''}>
+        <div class="it">${esc(f.home)} v ${esc(f.away)}<small>${dayLabel(d)} ${timeLabel(d)}${added?' · Already in a round':past?' · Already kicked off':''}</small></div>
+        <button class="star" data-star="${esc(k)}" aria-pressed="${banker===k}" aria-label="Make banker" title="Banker: players call the score" ${sel.has(k)?'':'disabled'}>⭐</button></div>`;}).join('')}</div>`;
+    }).join('')+tallyHtml();
+    if(keepTarget&&$('#itarget',res))$('#itarget',res).value=keepTarget;
+    if(keepName&&$('#iname',res))$('#iname',res).value=keepName;
+  };
+
+  box.onclick=async e=>{
+    const b=e.target.closest('[data-i],[data-star]');if(!b)return;
+    if(b.dataset.star){banker=banker===b.dataset.star?null:b.dataset.star;draw();return;}
+    const act=b.dataset.i;
+    if(act==='all'||act==='none'){
+      found.filter(f=>f.comp===b.dataset.c).forEach(f=>{const k=key(f);if(have.has(k))return;if(act==='all')sel.add(k);else{sel.delete(k);if(banker===k)banker=null;}});
+      draw();return;
+    }
+    if(act==='find'){
+      const from=$('#ifrom',box).value,to=$('#ito',box).value;
+      if(!from||!to){toast('Choose a start and end date.');return;}
+      const start=new Date(from+'T00:00:00'),end=new Date(to+'T23:59:59');
+      if(end<start){toast('The end date needs to be after the start date.');return;}
+      if(end-start>14*864e5){toast('Pick a window of 14 days or less.');return;}
+      const chosen=$$('.checks input:checked',box).map(i=>COMPS.find(c=>c.id===i.value));
+      if(!chosen.length){toast('Tick at least one competition.');return;}
+      b.disabled=true;b.textContent='Finding…';res.innerHTML='';
+      const empty=[],failed=[];found=[];sel=new Set();banker=null;
+      await Promise.all(chosen.map(async c=>{
+        try{const list=await fetchComp(c,start,end);if(list.length)found.push(...list);else empty.push(c.name);}
+        catch(err){failed.push(c.name);}
+      }));
+      b.disabled=false;b.textContent='Find fixtures';
+      found.sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+      let note='';
+      if(empty.length)note+=`<div class="msg">Nothing scheduled in these dates for: ${empty.map(esc).join(', ')}. Out-of-season competitions stay empty until the new season starts.</div>`;
+      if(failed.length)note+=`<div class="msg">Could not reach the feed for: ${failed.map(esc).join(', ')}. Try again in a minute.</div>`;
+      res.innerHTML=note;
+      if(found.length){const keep=res.innerHTML;draw();res.insertAdjacentHTML('afterbegin',keep);}
+      return;
+    }
+    if(act==='add'){
+      const payload=found.filter(f=>sel.has(key(f))).map(f=>({source:f.source,ext_id:f.ext_id,ext_league:f.ext_league,sport:f.sport,league:f.league,home:f.home,away:f.away,kickoff:f.kickoff,is_banker:banker===key(f)}));
+      if(!payload.length)return;
+      const target=$('#itarget',box).value;b.disabled=true;
+      try{
+        const r=await adm('admin_import_fixtures',{p_round:target==='new'?null:target,p_name:$('#iname',box).value,p_fixtures:payload});
+        S.roundId=r.round_id;S.adminRound=r.round_id;S.tab='picks';
+        toast(`${r.added} fixture${r.added===1?'':'s'} added${r.skipped?` (${r.skipped} already loaded)`:''}`);
+        closeAdmin();
+      }catch(err){toast(err.message);b.disabled=false;}
+    }
+  };
+  box.onchange=e=>{
+    const cb=e.target.closest('[data-k]');if(!cb)return;
+    if(cb.checked)sel.add(cb.dataset.k);else{sel.delete(cb.dataset.k);if(banker===cb.dataset.k)banker=null;}
+    const keep=[...res.querySelectorAll('.msg')].map(m=>m.outerHTML).join('');
+    draw();if(keep)res.insertAdjacentHTML('afterbegin',keep);
   };
 }
 
@@ -556,6 +732,7 @@ function adminPin(box){
     await loadRound();
   }catch(e){S.error=true;}
   S.loaded=true;render();
+  maybeSync();
   setInterval(()=>{if(S.adminOpen||!S.me||document.hidden)return;if(lockSig()!==S.sig)refreshAll();else if(S.tab==='picks')render();},20000);
   setInterval(()=>{if(S.adminOpen||!S.me||document.hidden)return;refreshAll();},90000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!S.adminOpen&&S.me)refreshAll();});
